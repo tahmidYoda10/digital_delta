@@ -1,14 +1,8 @@
-import 'package:equatable/equatable.dart';
-import '../../../../core/fleet/models/rendezvous_point.dart';
 import '../../../../core/fleet/models/drone_model.dart';
+import '../../../../core/fleet/models/rendezvous_point.dart';
 import '../../../../core/fleet/models/handoff_event.dart';
 
-abstract class FleetState extends Equatable {
-  const FleetState();
-
-  @override
-  List<Object?> get props => [];
-}
+abstract class FleetState {}
 
 class FleetInitial extends FleetState {}
 
@@ -17,44 +11,39 @@ class FleetLoading extends FleetState {}
 class FleetReady extends FleetState {
   final List<DroneModel> drones;
 
-  const FleetReady(this.drones);
+  FleetReady({this.drones = const []});
+}
 
-  @override
-  List<Object?> get props => [drones];
+class FleetLoaded extends FleetState {
+  final List<DroneModel> drones;
+
+  FleetLoaded({required this.drones});
 }
 
 class FleetRendezvousCalculated extends FleetState {
   final RendezvousPoint rendezvousPoint;
 
-  const FleetRendezvousCalculated(this.rendezvousPoint);
-
-  @override
-  List<Object?> get props => [rendezvousPoint];
+  FleetRendezvousCalculated({required this.rendezvousPoint});
 }
 
 class FleetHandoffInProgress extends FleetState {
+  final String deliveryId;
   final HandoffEvent handoff;
 
-  const FleetHandoffInProgress(this.handoff);
-
-  @override
-  List<Object?> get props => [handoff];
+  FleetHandoffInProgress({
+    required this.deliveryId,
+    required this.handoff,
+  });
 }
 
 class FleetHandoffCompleted extends FleetState {
-  final HandoffEvent handoff;
+  final String deliveryId;
 
-  const FleetHandoffCompleted(this.handoff);
-
-  @override
-  List<Object?> get props => [handoff];
+  FleetHandoffCompleted({required this.deliveryId});
 }
 
 class FleetError extends FleetState {
   final String message;
 
-  const FleetError(this.message);
-
-  @override
-  List<Object?> get props => [message];
+  FleetError({required this.message});
 }

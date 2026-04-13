@@ -2,27 +2,27 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/delivery/pod_generator.dart';
 import '../../../../core/delivery/pod_verifier.dart';
 import '../../../../core/delivery/models/pod_receipt.dart';
+import '../../../../core/crypto/key_manager.dart';
 import '../../../../core/utils/app_logger.dart';
-import '../../../../core/delivery/models/delivery_model.dart';
-import '../../../../core/database/database_helper.dart';
 import 'delivery_event.dart';
 import 'delivery_state.dart';
 
 class DeliveryBloc extends Bloc<DeliveryEvent, DeliveryState> {
   final PoDGenerator _podGenerator;
   final PoDVerifier _podVerifier;
-  final DatabaseHelper _db = DatabaseHelper.instance;
 
   DeliveryBloc({
     required PoDGenerator podGenerator,
-    required PoDVerifier podVerifier,
+    required KeyManager keyManager,
   })  : _podGenerator = podGenerator,
-        _podVerifier = podVerifier,
+        _podVerifier = PoDVerifier(
+          generator: podGenerator,
+          keyManager: keyManager,
+        ),
         super(DeliveryInitial()) {
     on<DeliveryGeneratePoDRequested>(_onGeneratePoDRequested);
     on<DeliveryVerifyPoDRequested>(_onVerifyPoDRequested);
-    on<DeliveryCounterSignRequested>(_onCounterSignRequested);
-    on<DeliveryListRequested>(_onListRequested);
+    on<DeliveryCompleteRequested>(_onCompleteRequested);
   }
 
   Future<void> _onGeneratePoDRequested(
@@ -32,19 +32,15 @@ class DeliveryBloc extends Bloc<DeliveryEvent, DeliveryState> {
     emit(DeliveryLoading());
 
     try {
-      final receipt = _podGenerator.generatePoD(
+      final podReceipt = _podGenerator.generatePoD(
         delivery: event.delivery,
         recipientPublicKey: event.recipientPublicKey,
       );
 
-      final qrPayload = receipt.toQRPayload();
-
-      emit(DeliveryPoDGenerated(
-        receipt: receipt,
-        qrPayload: qrPayload,
-      ));
-
-    } catch (e) {
+      AppLogger.info('✅ PoD generated for delivery: ${event.delivery.id}');
+      emit(DeliveryPoDGenerated(podReceipt));
+    } catch (e, stack) {
+      AppLogger.error('Failed to generate PoD', e, stack);
       emit(DeliveryError('Failed to generate PoD: ${e.toString()}'));
     }
   }
@@ -56,56 +52,36 @@ class DeliveryBloc extends Bloc<DeliveryEvent, DeliveryState> {
     emit(DeliveryLoading());
 
     try {
-      final receipt = PoDReceipt.fromQRPayload(event.qrPayload);
-      final result = _podVerifier.verify(receipt);
+      // Parse QR payload to PoDReceipt
+      final podReceipt = PoDReceipt.fromQRPayload(event.qrData);
 
+      // Verify using PoDVerifier
+      final result = _podVerifier.verify(podReceipt);
+
+      AppLogger.info('PoD verification result: $result');
       emit(DeliveryPoDVerified(
-        receipt: receipt,
-        result: result,
+        podReceipt: podReceipt,
+        verificationResult: result,
       ));
-
-    } catch (e) {
-      emit(DeliveryError('Failed to verify PoD: ${e.toString()}'));
+    } catch (e, stack) {
+      AppLogger.error('Failed to verify PoD', e, stack);
+      emit(DeliveryError('Verification error: ${e.toString()}'));
     }
   }
 
-  Future<void> _onCounterSignRequested(
-      DeliveryCounterSignRequested event,
-      Emitter<DeliveryState> emit,
-      ) async {
-    try {
-      // Update delivery status in database
-      final database = await _db.database;
-      await database.update(
-        'deliveries',
-        {'status': DeliveryStatus.COMPLETED.toString()},
-        where: 'id = ?',
-        whereArgs: [event.deliveryId],
-      );
-
-      emit(DeliveryCompleted(event.deliveryId));
-
-    } catch (e) {
-      emit(DeliveryError('Failed to complete delivery: ${e.toString()}'));
-    }
-  }
-
-  Future<void> _onListRequested(
-      DeliveryListRequested event,
+  Future<void> _onCompleteRequested(
+      DeliveryCompleteRequested event,
       Emitter<DeliveryState> emit,
       ) async {
     emit(DeliveryLoading());
 
     try {
-      final database = await _db.database;
-      final results = await database.query('deliveries');
-
-      final deliveries = results.map((row) => DeliveryModel.fromMap(row)).toList();
-
-      emit(DeliveryListLoaded(deliveries));
-
-    } catch (e) {
-      emit(DeliveryError('Failed to load deliveries: ${e.toString()}'));
+      // TODO: Update delivery status in database
+      AppLogger.info('✅ Delivery completed: ${event.deliveryId}');
+      emit(const DeliveryCompleted());
+    } catch (e, stack) {
+      AppLogger.error('Failed to complete delivery', e, stack);
+      emit(DeliveryError('Failed to complete: ${e.toString()}'));
     }
   }
 }

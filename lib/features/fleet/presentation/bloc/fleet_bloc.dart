@@ -1,25 +1,32 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:uuid/uuid.dart';
-import '../../../../core/fleet/models/drone_model.dart';
-import '../../../../core/fleet/models/handoff_event.dart';
 import '../../../../core/utils/app_logger.dart';
-import '../../domain/usecases/calculate_rendezvous_usecase.dart';
+import '../../../../core/fleet/models/drone_model.dart';
+import '../../../../core/fleet/models/rendezvous_point.dart';
+import '../../../../core/fleet/models/handoff_event.dart';
 import 'fleet_event.dart';
 import 'fleet_state.dart';
 
 class FleetBloc extends Bloc<FleetEvent, FleetState> {
-  final CalculateRendezvousUseCase _calculateRendezvousUseCase;
-  final List<DroneModel> _drones = [];
-
-  FleetBloc({
-    required CalculateRendezvousUseCase calculateRendezvousUseCase,
-  })  : _calculateRendezvousUseCase = calculateRendezvousUseCase,
-        super(FleetInitial()) {
+  FleetBloc() : super(FleetInitial()) {
+    on<FleetLoadRequested>(_onLoadRequested);
     on<FleetInitializeRequested>(_onInitializeRequested);
     on<FleetCalculateRendezvousRequested>(_onCalculateRendezvousRequested);
     on<FleetExecuteHandoffRequested>(_onExecuteHandoffRequested);
-    on<FleetDroneStatusUpdated>(_onDroneStatusUpdated);
+  }
+
+  Future<void> _onLoadRequested(
+      FleetLoadRequested event,
+      Emitter<FleetState> emit,
+      ) async {
+    emit(FleetLoading());
+    try {
+      await Future.delayed(const Duration(seconds: 1));
+      emit(FleetLoaded(drones: _getMockDrones()));
+    } catch (e, stack) {
+      AppLogger.error('Failed to load fleet', e, stack);
+      emit(FleetError(message: e.toString()));
+    }
   }
 
   Future<void> _onInitializeRequested(
@@ -27,30 +34,12 @@ class FleetBloc extends Bloc<FleetEvent, FleetState> {
       Emitter<FleetState> emit,
       ) async {
     emit(FleetLoading());
-
     try {
-      // Initialize demo drones
-      _drones.clear();
-      _drones.addAll([
-        DroneModel(
-          id: 'DRONE-001',
-          baseStationId: 'BASE-001',
-          currentPosition: const LatLng(24.8949, 91.8667),
-          batteryPercent: 95.0,
-        ),
-        DroneModel(
-          id: 'DRONE-002',
-          baseStationId: 'BASE-002',
-          currentPosition: const LatLng(25.0658, 91.4073),
-          batteryPercent: 80.0,
-        ),
-      ]);
-
-      emit(FleetReady(_drones));
-      AppLogger.info('✅ Fleet initialized with ${_drones.length} drones');
-
+      await Future.delayed(const Duration(seconds: 1));
+      emit(FleetReady(drones: _getMockDrones()));
+      AppLogger.info('✅ Fleet initialized');
     } catch (e) {
-      emit(FleetError('Fleet initialization failed: ${e.toString()}'));
+      emit(FleetError(message: e.toString()));
     }
   }
 
@@ -59,24 +48,21 @@ class FleetBloc extends Bloc<FleetEvent, FleetState> {
       Emitter<FleetState> emit,
       ) async {
     try {
-      final drone = _drones.firstWhere((d) => d.id == event.droneId);
+      emit(FleetLoading());
 
-      final rendezvousPoint = _calculateRendezvousUseCase.calculate(
+      final rendezvousPoint = RendezvousPoint.calculate(
         boatPosition: event.boatPosition,
-        boatSpeedKmh: 30.0, // Average speedboat speed
         droneBasePosition: event.droneBasePosition,
-        drone: drone,
         destinationPosition: event.destinationPosition,
+        boatSpeedKmh: 30,
+        droneSpeedKmh: 60,
       );
 
-      if (rendezvousPoint != null) {
-        emit(FleetRendezvousCalculated(rendezvousPoint));
-      } else {
-        emit(const FleetError('No valid rendezvous point found'));
-      }
-
-    } catch (e) {
-      emit(FleetError('Rendezvous calculation failed: ${e.toString()}'));
+      emit(FleetRendezvousCalculated(rendezvousPoint: rendezvousPoint));
+      AppLogger.info('✅ Rendezvous calculated: ${rendezvousPoint.position}');
+    } catch (e, stack) {
+      AppLogger.error('Failed to calculate rendezvous', e, stack);
+      emit(FleetError(message: e.toString()));
     }
   }
 
@@ -86,46 +72,66 @@ class FleetBloc extends Bloc<FleetEvent, FleetState> {
       ) async {
     try {
       final handoff = HandoffEvent(
-        id: const Uuid().v4(),
+        id: 'handoff-${DateTime.now().millisecondsSinceEpoch}',
         deliveryId: event.deliveryId,
-        boatId: 'BOAT-001',
-        droneId: 'DRONE-001',
-        status: HandoffStatus.INITIATED,
+        boatId: event.boatId,
+        droneId: event.droneId,
+        rendezvousLat: 24.95,
+        rendezvousLon: 91.85,
         initiatedAt: DateTime.now(),
+        status: HandoffStatus.INITIATED,
       );
 
-      emit(FleetHandoffInProgress(handoff));
+      emit(FleetHandoffInProgress(
+        deliveryId: event.deliveryId,
+        handoff: handoff,
+      ));
 
-      // Simulate handoff process
       await Future.delayed(const Duration(seconds: 3));
+      emit(FleetHandoffCompleted(deliveryId: event.deliveryId));
 
-      final completedHandoff = handoff.copyWith(
-        status: HandoffStatus.COMPLETED,
-        completedAt: DateTime.now(),
-      );
-
-      emit(FleetHandoffCompleted(completedHandoff));
-      AppLogger.info('✅ Handoff completed: ${handoff.id}');
-
-    } catch (e) {
-      emit(FleetError('Handoff failed: ${e.toString()}'));
+      AppLogger.info('✅ Handoff completed: ${event.deliveryId}');
+    } catch (e, stack) {
+      AppLogger.error('Failed to execute handoff', e, stack);
+      emit(FleetError(message: e.toString()));
     }
   }
 
-  Future<void> _onDroneStatusUpdated(
-      FleetDroneStatusUpdated event,
-      Emitter<FleetState> emit,
-      ) async {
-    try {
-      final droneIndex = _drones.indexWhere((d) => d.id == event.droneId);
-      if (droneIndex != -1) {
-        _drones[droneIndex] = _drones[droneIndex].copyWith(
-          batteryPercent: event.batteryLevel,
-        );
-        emit(FleetReady(_drones));
-      }
-    } catch (e) {
-      AppLogger.error('Failed to update drone status', e);
-    }
+  List<DroneModel> _getMockDrones() {
+    return [
+      DroneModel(
+        id: 'DRONE-001',
+        baseStationId: 'BASE-001',
+        maxRangeKm: 15.0,
+        maxPayloadKg: 5.0,
+        maxSpeedKmh: 60.0, // ✅ ADDED
+        currentLat: 24.8949,
+        currentLon: 91.8667,
+        batteryPercent: 85.0,
+        status: DroneStatus.IDLE,
+      ),
+      DroneModel(
+        id: 'DRONE-002',
+        baseStationId: 'BASE-001',
+        maxRangeKm: 20.0,
+        maxPayloadKg: 7.0,
+        maxSpeedKmh: 70.0, // ✅ ADDED
+        currentLat: 24.9000,
+        currentLon: 91.8700,
+        batteryPercent: 65.0,
+        status: DroneStatus.IDLE,
+      ),
+      DroneModel(
+        id: 'DRONE-003',
+        baseStationId: 'BASE-001',
+        maxRangeKm: 12.0,
+        maxPayloadKg: 4.0,
+        maxSpeedKmh: 50.0, // ✅ ADDED
+        currentLat: 24.8850,
+        currentLon: 91.8600,
+        batteryPercent: 45.0,
+        status: DroneStatus.CHARGING,
+      ),
+    ];
   }
 }

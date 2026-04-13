@@ -4,6 +4,9 @@ import 'package:latlong2/latlong.dart';
 import '../bloc/fleet_bloc.dart';
 import '../bloc/fleet_event.dart';
 import '../bloc/fleet_state.dart';
+import '../../../../core/fleet/models/drone_model.dart';
+import '../../../../core/fleet/models/rendezvous_point.dart';
+import '../../../../core/fleet/models/handoff_event.dart';
 
 class FleetDashboardPage extends StatelessWidget {
   const FleetDashboardPage({super.key});
@@ -12,7 +15,8 @@ class FleetDashboardPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Hybrid Fleet Dashboard'),
+        title: const Text('🚁 Hybrid Fleet Dashboard'),
+        backgroundColor: Colors.purple.shade700,
       ),
       body: BlocConsumer<FleetBloc, FleetState>(
         listener: (context, state) {
@@ -37,8 +41,11 @@ class FleetDashboardPage extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (state is FleetReady) {
-            return _buildFleetView(context, state.drones);
+          if (state is FleetReady || state is FleetLoaded) {
+            final drones = state is FleetReady
+                ? state.drones
+                : (state as FleetLoaded).drones;
+            return _buildFleetView(context, drones);
           }
 
           if (state is FleetRendezvousCalculated) {
@@ -50,11 +57,23 @@ class FleetDashboardPage extends StatelessWidget {
           }
 
           return Center(
-            child: ElevatedButton(
-              onPressed: () {
-                context.read<FleetBloc>().add(FleetInitializeRequested());
-              },
-              child: const Text('Initialize Fleet'),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.flight, size: 100, color: Colors.purple),
+                const SizedBox(height: 24),
+                const Text(
+                  'Fleet Management',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    context.read<FleetBloc>().add(FleetInitializeRequested());
+                  },
+                  child: const Text('Initialize Fleet'),
+                ),
+              ],
             ),
           );
         },
@@ -62,7 +81,7 @@ class FleetDashboardPage extends StatelessWidget {
     );
   }
 
-  Widget _buildFleetView(BuildContext context, List drones) {
+  Widget _buildFleetView(BuildContext context, List<DroneModel> drones) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -106,7 +125,7 @@ class FleetDashboardPage extends StatelessWidget {
     );
   }
 
-  Widget _buildRendezvousView(BuildContext context, rendezvousPoint) {
+  Widget _buildRendezvousView(BuildContext context, RendezvousPoint rendezvousPoint) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -134,7 +153,9 @@ class FleetDashboardPage extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      rendezvousPoint.isSynchronized() ? 'Synchronized' : 'Wait time: ${rendezvousPoint.getMaxWaitTime().inMinutes} min',
+                      rendezvousPoint.isSynchronized()
+                          ? 'Synchronized'
+                          : 'Wait time: ${rendezvousPoint.getMaxWaitTime().inMinutes} min',
                     ),
                   ],
                 ),
@@ -146,7 +167,11 @@ class FleetDashboardPage extends StatelessWidget {
         ElevatedButton.icon(
           onPressed: () {
             context.read<FleetBloc>().add(
-              const FleetExecuteHandoffRequested('DELIVERY-001'),
+              FleetExecuteHandoffRequested(
+                deliveryId: 'DELIVERY-001',
+                droneId: 'DRONE-001',
+                boatId: 'BOAT-001',
+              ),
             );
           },
           icon: const Icon(Icons.send),
@@ -156,7 +181,7 @@ class FleetDashboardPage extends StatelessWidget {
     );
   }
 
-  Widget _buildHandoffView(BuildContext context, handoff) {
+  Widget _buildHandoffView(BuildContext context, HandoffEvent handoff) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

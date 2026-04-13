@@ -143,6 +143,27 @@ class DatabaseHelper {
       )
     ''');
 
+    // M6: Supply Requests (Citizen → Manager)
+    await db.execute('''
+  CREATE TABLE supply_requests (
+    id TEXT PRIMARY KEY,
+    requester_id TEXT NOT NULL,
+    camp_id TEXT NOT NULL,
+    item_name TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    priority TEXT NOT NULL,
+    status TEXT NOT NULL,
+    medical_reason TEXT,
+    created_at TEXT NOT NULL,
+    approved_at TEXT,
+    approved_by TEXT,
+    rejected_reason TEXT,
+    vector_clock TEXT NOT NULL,
+    device_id TEXT NOT NULL,
+    FOREIGN KEY (requester_id) REFERENCES users(id)
+  )
+''');
+
     AppLogger.info('✅ Database tables created successfully');
   }
 

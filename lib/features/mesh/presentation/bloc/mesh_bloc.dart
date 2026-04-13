@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/network/mesh/mesh_manager.dart';
+import '../../../../core/network/mesh/mesh_node.dart';
 import '../../../../core/utils/app_logger.dart';
 import 'mesh_event.dart';
 import 'mesh_state.dart';
@@ -10,40 +11,15 @@ class MeshBloc extends Bloc<MeshEvent, MeshState> {
   MeshBloc({required MeshManager meshManager})
       : _meshManager = meshManager,
         super(MeshInitial()) {
-    on<MeshInitializeRequested>(_onInitializeRequested);
     on<MeshStartScanRequested>(_onStartScanRequested);
     on<MeshStopScanRequested>(_onStopScanRequested);
     on<MeshConnectToPeerRequested>(_onConnectToPeerRequested);
-    on<MeshSendMessageRequested>(_onSendMessageRequested);
-    on<MeshMessageReceived>(_onMessageReceived);
     on<MeshNodesUpdated>(_onNodesUpdated);
 
-    // Listen to mesh events
-    _meshManager.messageStream.listen((message) {
-      add(MeshMessageReceived(message));
-    });
-
+    // Listen to node updates
     _meshManager.nodesStream.listen((nodes) {
-      add(MeshNodesUpdated(nodes));
+      add(MeshNodesUpdated(nodes: nodes));
     });
-  }
-
-  Future<void> _onInitializeRequested(
-      MeshInitializeRequested event,
-      Emitter<MeshState> emit,
-      ) async {
-    emit(MeshInitializing());
-
-    try {
-      await _meshManager.initialize();
-      final stats = _meshManager.getStats();
-      final localNodeId = stats['localNode']['deviceId'];
-
-      emit(MeshReady(localNodeId));
-      AppLogger.info('✅ Mesh BLoC ready');
-    } catch (e) {
-      emit(MeshError('Initialization failed: ${e.toString()}'));
-    }
   }
 
   Future<void> _onStartScanRequested(
@@ -51,10 +27,13 @@ class MeshBloc extends Bloc<MeshEvent, MeshState> {
       Emitter<MeshState> emit,
       ) async {
     try {
+      emit(MeshInitializing());
       await _meshManager.startScanning();
-      emit(const MeshScanning([]));
-    } catch (e) {
-      emit(MeshError('Scan failed: ${e.toString()}'));
+      emit(MeshScanning(discoveredNodes: [], nodeCount: 0));
+      AppLogger.info('🔍 Mesh scanning started');
+    } catch (e, stack) {
+      AppLogger.error('Failed to start mesh scan', e, stack);
+      emit(MeshError(message: e.toString()));
     }
   }
 
@@ -62,8 +41,7 @@ class MeshBloc extends Bloc<MeshEvent, MeshState> {
       MeshStopScanRequested event,
       Emitter<MeshState> emit,
       ) async {
-    // Stop scan logic
-    emit(const MeshScanning([]));
+    emit(MeshInitial());
   }
 
   Future<void> _onConnectToPeerRequested(
@@ -72,35 +50,22 @@ class MeshBloc extends Bloc<MeshEvent, MeshState> {
       ) async {
     try {
       await _meshManager.connectToPeer(event.deviceId);
-      emit(MeshConnected(peerId: event.deviceId, connectedNodes: const []));
-    } catch (e) {
-      emit(MeshError('Connection failed: ${e.toString()}'));
+      AppLogger.info('✅ Connected to peer: ${event.deviceId}');
+    } catch (e, stack) {
+      AppLogger.error('Failed to connect to peer', e, stack);
+      emit(MeshError(message: e.toString()));
     }
   }
 
-  Future<void> _onSendMessageRequested(
-      MeshSendMessageRequested event,
-      Emitter<MeshState> emit,
-      ) async {
-    try {
-      await _meshManager.sendMessage(event.message);
-      emit(MeshMessageSent(event.message.id));
-    } catch (e) {
-      emit(MeshError('Send failed: ${e.toString()}'));
-    }
-  }
-
-  Future<void> _onMessageReceived(
-      MeshMessageReceived event,
-      Emitter<MeshState> emit,
-      ) async {
-    emit(MeshNewMessage(event.message));
-  }
-
-  Future<void> _onNodesUpdated(
+  void _onNodesUpdated(
       MeshNodesUpdated event,
       Emitter<MeshState> emit,
-      ) async {
-    emit(MeshScanning(event.nodes.cast()));
+      ) {
+    if (state is MeshScanning) {
+      emit(MeshScanning(
+        discoveredNodes: event.nodes.cast<MeshNode>(),
+        nodeCount: event.nodes.length,
+      ));
+    }
   }
 }

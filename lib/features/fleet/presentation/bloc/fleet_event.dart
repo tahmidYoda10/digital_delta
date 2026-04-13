@@ -1,12 +1,8 @@
-import 'package:equatable/equatable.dart';
 import 'package:latlong2/latlong.dart';
 
-abstract class FleetEvent extends Equatable {
-  const FleetEvent();
+abstract class FleetEvent {}
 
-  @override
-  List<Object?> get props => [];
-}
+class FleetLoadRequested extends FleetEvent {}
 
 class FleetInitializeRequested extends FleetEvent {}
 
@@ -16,35 +12,22 @@ class FleetCalculateRendezvousRequested extends FleetEvent {
   final LatLng destinationPosition;
   final String droneId;
 
-  const FleetCalculateRendezvousRequested({
+  FleetCalculateRendezvousRequested({
     required this.boatPosition,
     required this.droneBasePosition,
     required this.destinationPosition,
     required this.droneId,
   });
-
-  @override
-  List<Object?> get props => [boatPosition, droneBasePosition, destinationPosition, droneId];
 }
 
 class FleetExecuteHandoffRequested extends FleetEvent {
   final String deliveryId;
-
-  const FleetExecuteHandoffRequested(this.deliveryId);
-
-  @override
-  List<Object?> get props => [deliveryId];
-}
-
-class FleetDroneStatusUpdated extends FleetEvent {
   final String droneId;
-  final double batteryLevel;
+  final String boatId;
 
-  const FleetDroneStatusUpdated({
+  FleetExecuteHandoffRequested({
+    required this.deliveryId,
     required this.droneId,
-    required this.batteryLevel,
+    required this.boatId,
   });
-
-  @override
-  List<Object?> get props => [droneId, batteryLevel];
 }

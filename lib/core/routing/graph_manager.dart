@@ -56,29 +56,35 @@ class GraphManager {
     _edges = results.map((row) => GraphEdge.fromMap(row)).toList();
   }
 
-  /// ✅ LOAD DEMO DATA (Sylhet area)
+  /// ✅ LOAD DEMO DATA (Sylhet area) - FIXED VERSION
   Future<void> _loadDemoData() async {
     final demoGraph = {
       "nodes": [
         {"id": "N1", "name": "Central Command (Sylhet)", "type": "central_command", "lat": 24.8949, "lng": 91.8667},
-        {"id": "N2", "name": "Supply Drop A", "type": "supply_drop", "lat": 24.9045, "lng": 91.8735},
-        {"id": "N3", "name": "Relief Camp B", "type": "relief_camp", "lat": 24.8850, "lng": 91.8800},
-        {"id": "N4", "name": "Hospital", "type": "hospital", "lat": 24.9100, "lng": 91.8900},
-        {"id": "N5", "name": "Drone Base", "type": "drone_base", "lat": 24.8800, "lng": 91.8600},
-        {"id": "N6", "name": "Waypoint X", "type": "waypoint", "lat": 24.8975, "lng": 91.8750},
+        {"id": "N2", "name": "Osmani Airport", "type": "supply_drop", "lat": 24.9633, "lng": 91.8679},
+        {"id": "N3", "name": "Sunamganj Camp", "type": "relief_camp", "lat": 25.0657, "lng": 91.3958},
+        {"id": "N4", "name": "Companyganj Outpost", "type": "hospital", "lat": 24.6333, "lng": 91.9833},
+        {"id": "N5", "name": "Kanaighat Point", "type": "waypoint", "lat": 25.0500, "lng": 92.2000},
+        {"id": "N6", "name": "Habiganj Hospital", "type": "hospital", "lat": 24.3745, "lng": 91.4160},
       ],
       "edges": [
-        {"id": "E1", "source": "N1", "target": "N2", "type": "road", "base_weight_mins": 15.0},
-        {"id": "E2", "source": "N1", "target": "N3", "type": "road", "base_weight_mins": 20.0},
-        {"id": "E3", "source": "N2", "target": "N4", "type": "road", "base_weight_mins": 25.0},
-        {"id": "E4", "source": "N3", "target": "N4", "type": "waterway", "base_weight_mins": 30.0},
-        {"id": "E5", "source": "N1", "target": "N5", "type": "road", "base_weight_mins": 10.0},
-        {"id": "E6", "source": "N5", "target": "N6", "type": "airway", "base_weight_mins": 5.0},
-        {"id": "E7", "source": "N6", "target": "N4", "type": "airway", "base_weight_mins": 8.0},
+        {"id": "E1", "source": "N1", "target": "N2", "type": "road", "base_weight_mins": 20.0, "is_flooded": false},
+        {"id": "E2", "source": "N1", "target": "N3", "type": "waterway", "base_weight_mins": 90.0, "is_flooded": false},
+        {"id": "E3", "source": "N2", "target": "N4", "type": "road", "base_weight_mins": 45.0, "is_flooded": false},
+        {"id": "E4", "source": "N3", "target": "N4", "type": "waterway", "base_weight_mins": 120.0, "is_flooded": false},
+        {"id": "E5", "source": "N1", "target": "N5", "type": "road", "base_weight_mins": 60.0, "is_flooded": false},
+        {"id": "E6", "source": "N5", "target": "N6", "type": "airway", "base_weight_mins": 15.0, "is_flooded": false},
+        {"id": "E7", "source": "N4", "target": "N6", "type": "road", "base_weight_mins": 50.0, "is_flooded": false},
       ]
     };
 
     await importFromJson(demoGraph);
+
+    // ✅ FORCE RELOAD nodes after import
+    await _loadNodesFromDB();
+    await _loadEdgesFromDB();
+
+    AppLogger.info('📍 Demo nodes loaded: ${_nodes.keys.join(", ")}');
   }
 
   /// Rebuild route calculator

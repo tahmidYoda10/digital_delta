@@ -1,12 +1,6 @@
+import 'package:uuid/uuid.dart';
 import '../crdt/vector_clock.dart';
-
-enum UserRole {
-  FIELD_VOLUNTEER,
-  SUPPLY_MANAGER,
-  DRONE_OPERATOR,
-  CAMP_COMMANDER,
-  SYNC_ADMIN,
-}
+import '../../auth/user_role.dart';
 
 class UserModel {
   final String id;
@@ -27,6 +21,26 @@ class UserModel {
     required this.deviceId,
   });
 
+  factory UserModel.create({
+    required String username,
+    required String publicKey,
+    required UserRole role,
+    required String deviceId,
+  }) {
+    final vectorClock = VectorClock();
+    vectorClock.increment(deviceId);
+
+    return UserModel(
+      id: const Uuid().v4(),
+      username: username,
+      publicKey: publicKey,
+      role: role,
+      createdAt: DateTime.now(),
+      vectorClock: vectorClock,
+      deviceId: deviceId,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -44,34 +58,15 @@ class UserModel {
       id: map['id'],
       username: map['username'],
       publicKey: map['public_key'],
-      role: UserRole.values.firstWhere(
-            (e) => e.toString() == map['role'],
-        orElse: () => UserRole.FIELD_VOLUNTEER,
-      ),
+      role: RolePermissions.fromString(map['role'].toString().split('.').last),
       createdAt: DateTime.parse(map['created_at']),
       vectorClock: VectorClock.fromJson(map['vector_clock']),
       deviceId: map['device_id'],
     );
   }
 
-  /// Check permissions (M1.3 RBAC)
-  bool canManageSupplies() {
-    return role == UserRole.SUPPLY_MANAGER ||
-        role == UserRole.CAMP_COMMANDER ||
-        role == UserRole.SYNC_ADMIN;
-  }
-
-  bool canOperateDrone() {
-    return role == UserRole.DRONE_OPERATOR ||
-        role == UserRole.SYNC_ADMIN;
-  }
-
-  bool canSyncData() {
-    return role == UserRole.SYNC_ADMIN;
-  }
-
-  bool canViewAuditLogs() {
-    return role == UserRole.CAMP_COMMANDER ||
-        role == UserRole.SYNC_ADMIN;
+  @override
+  String toString() {
+    return 'UserModel(id: $id, username: $username, role: ${RolePermissions.getRoleName(role)})';
   }
 }

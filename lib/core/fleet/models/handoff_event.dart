@@ -1,5 +1,3 @@
-import '../../../../core/delivery/models/pod_receipt.dart';
-
 enum HandoffStatus {
   INITIATED,
   BOAT_ARRIVED,
@@ -14,22 +12,22 @@ class HandoffEvent {
   final String deliveryId;
   final String boatId;
   final String droneId;
-  final HandoffStatus status;
+  final double rendezvousLat;
+  final double rendezvousLon;
   final DateTime initiatedAt;
   final DateTime? completedAt;
-  final PoDReceipt? boatReceipt;
-  final PoDReceipt? droneReceipt;
+  final HandoffStatus status;
 
   HandoffEvent({
     required this.id,
     required this.deliveryId,
     required this.boatId,
     required this.droneId,
-    required this.status,
+    required this.rendezvousLat,
+    required this.rendezvousLon,
     required this.initiatedAt,
     this.completedAt,
-    this.boatReceipt,
-    this.droneReceipt,
+    required this.status,
   });
 
   Map<String, dynamic> toMap() {
@@ -38,33 +36,30 @@ class HandoffEvent {
       'delivery_id': deliveryId,
       'boat_id': boatId,
       'drone_id': droneId,
-      'status': status.toString(),
+      'rendezvous_lat': rendezvousLat,
+      'rendezvous_lon': rendezvousLon,
       'initiated_at': initiatedAt.toIso8601String(),
       'completed_at': completedAt?.toIso8601String(),
+      'status': status.toString(),
     };
   }
 
-  HandoffEvent copyWith({
-    HandoffStatus? status,
-    DateTime? completedAt,
-    PoDReceipt? boatReceipt,
-    PoDReceipt? droneReceipt,
-  }) {
+  factory HandoffEvent.fromMap(Map<String, dynamic> map) {
     return HandoffEvent(
-      id: id,
-      deliveryId: deliveryId,
-      boatId: boatId,
-      droneId: droneId,
-      status: status ?? this.status,
-      initiatedAt: initiatedAt,
-      completedAt: completedAt ?? this.completedAt,
-      boatReceipt: boatReceipt ?? this.boatReceipt,
-      droneReceipt: droneReceipt ?? this.droneReceipt,
+      id: map['id'],
+      deliveryId: map['delivery_id'],
+      boatId: map['boat_id'],
+      droneId: map['drone_id'],
+      rendezvousLat: map['rendezvous_lat'],
+      rendezvousLon: map['rendezvous_lon'],
+      initiatedAt: DateTime.parse(map['initiated_at']),
+      completedAt: map['completed_at'] != null
+          ? DateTime.parse(map['completed_at'])
+          : null,
+      status: HandoffStatus.values.firstWhere(
+            (e) => e.toString() == map['status'],
+        orElse: () => HandoffStatus.INITIATED,
+      ),
     );
-  }
-
-  @override
-  String toString() {
-    return 'HandoffEvent(id: $id, status: $status, boat: $boatId, drone: $droneId)';
   }
 }

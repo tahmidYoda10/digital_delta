@@ -1,42 +1,32 @@
-import 'package:equatable/equatable.dart';
 import '../../../../core/delivery/models/delivery_model.dart';
+import '../../../../core/delivery/models/pod_receipt.dart';
 
-abstract class DeliveryEvent extends Equatable {
-  const DeliveryEvent();
-
-  @override
-  List<Object?> get props => [];
-}
+abstract class DeliveryEvent {}
 
 class DeliveryGeneratePoDRequested extends DeliveryEvent {
   final DeliveryModel delivery;
   final String recipientPublicKey;
 
-  const DeliveryGeneratePoDRequested({
+  DeliveryGeneratePoDRequested({
     required this.delivery,
     required this.recipientPublicKey,
   });
-
-  @override
-  List<Object?> get props => [delivery, recipientPublicKey];
 }
 
 class DeliveryVerifyPoDRequested extends DeliveryEvent {
-  final String qrPayload;
+  final String qrData;
 
-  const DeliveryVerifyPoDRequested(this.qrPayload);
-
-  @override
-  List<Object?> get props => [qrPayload];
+  DeliveryVerifyPoDRequested(this.qrData);
 }
 
-class DeliveryCounterSignRequested extends DeliveryEvent {
+class DeliveryCompleteRequested extends DeliveryEvent {
   final String deliveryId;
 
-  const DeliveryCounterSignRequested(this.deliveryId);
-
-  @override
-  List<Object?> get props => [deliveryId];
+  DeliveryCompleteRequested({required this.deliveryId});
 }
 
-class DeliveryListRequested extends DeliveryEvent {}
+class DeliveryScanQRRequested extends DeliveryEvent {
+  final String qrData;
+
+  DeliveryScanQRRequested({required this.qrData});
+}

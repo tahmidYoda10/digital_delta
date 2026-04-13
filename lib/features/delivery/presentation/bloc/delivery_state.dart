@@ -1,13 +1,8 @@
-import 'package:equatable/equatable.dart';
 import '../../../../core/delivery/models/pod_receipt.dart';
-import '../../../../core/delivery/models/delivery_model.dart';
 import '../../../../core/delivery/pod_verifier.dart';
 
-abstract class DeliveryState extends Equatable {
+abstract class DeliveryState {
   const DeliveryState();
-
-  @override
-  List<Object?> get props => [];
 }
 
 class DeliveryInitial extends DeliveryState {}
@@ -15,54 +10,33 @@ class DeliveryInitial extends DeliveryState {}
 class DeliveryLoading extends DeliveryState {}
 
 class DeliveryPoDGenerated extends DeliveryState {
-  final PoDReceipt receipt;
-  final String qrPayload;
+  final PoDReceipt podReceipt;
 
-  const DeliveryPoDGenerated({
-    required this.receipt,
-    required this.qrPayload,
-  });
+  const DeliveryPoDGenerated(this.podReceipt);
 
-  @override
-  List<Object?> get props => [receipt, qrPayload];
+  // Add qrPayload getter
+  String get qrPayload => podReceipt.toQRPayload();
 }
 
 class DeliveryPoDVerified extends DeliveryState {
-  final PoDReceipt receipt;
-  final VerificationResult result;
+  final PoDReceipt podReceipt;
+  final VerificationResult verificationResult;
 
   const DeliveryPoDVerified({
-    required this.receipt,
-    required this.result,
+    required this.podReceipt,
+    required this.verificationResult,
   });
 
-  @override
-  List<Object?> get props => [receipt, result];
+  // Add result getter
+  VerificationResult get result => verificationResult;
 }
 
 class DeliveryCompleted extends DeliveryState {
-  final String deliveryId;
-
-  const DeliveryCompleted(this.deliveryId);
-
-  @override
-  List<Object?> get props => [deliveryId];
-}
-
-class DeliveryListLoaded extends DeliveryState {
-  final List<DeliveryModel> deliveries;
-
-  const DeliveryListLoaded(this.deliveries);
-
-  @override
-  List<Object?> get props => [deliveries];
+  const DeliveryCompleted();
 }
 
 class DeliveryError extends DeliveryState {
   final String message;
 
   const DeliveryError(this.message);
-
-  @override
-  List<Object?> get props => [message];
 }

@@ -7,6 +7,11 @@ import '../bloc/routing_event.dart';
 import '../bloc/routing_state.dart';
 import '../../../../core/routing/vehicle_constraints.dart';
 import '../../../../core/routing/models/graph_node.dart';
+import '../../../../core/routing/models/graph_edge.dart';
+import '../../../../core/auth/rbac_manager.dart';
+import '../../../../core/auth/permission_guard.dart';
+import '../../../auth/data/auth_repository_impl.dart';
+import '../widgets/flood_status_panel.dart';
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -20,6 +25,27 @@ class _MapPageState extends State<MapPage> {
   String? _selectedStartNode;
   String? _selectedEndNode;
   VehicleConstraints _selectedVehicle = VehicleConstraints.truck;
+  bool _chaosActive = false;
+
+  late RBACManager _rbacManager;
+  late PermissionGuard _permissionGuard;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Get RBAC
+    final authRepo = RepositoryProvider.of<AuthRepositoryImpl>(context, listen: false);
+    _rbacManager = authRepo.rbacManager;
+    _permissionGuard = PermissionGuard(_rbacManager);
+
+    // ✅ ROUTE GUARD - Check access
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_permissionGuard.canNavigate(context, 'delivery:read')) {
+        // Will auto-close and show error
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +53,30 @@ class _MapPageState extends State<MapPage> {
       appBar: AppBar(
         title: const Text('Route Map'),
         actions: [
+          // ✅ CHAOS TOGGLE - Protected
+          BlocBuilder<RoutingBloc, RoutingState>(
+            builder: (context, state) {
+              if (state is RoutingReady) {
+                _chaosActive = state.chaosActive;
+              } else if (state is RoutingCalculated) {
+                _chaosActive = state.chaosActive;
+              }
+
+              // Only show if has permission
+              if (!_rbacManager.hasPermission('mesh:admin')) {
+                return const SizedBox.shrink(); // Hide button
+              }
+
+              return IconButton(
+                icon: Icon(
+                  Icons.thunderstorm,
+                  color: _chaosActive ? Colors.orange : Colors.grey,
+                ),
+                tooltip: _chaosActive ? 'Stop Chaos Mode' : 'Start Chaos Mode',
+                onPressed: _toggleChaos,
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
@@ -77,6 +127,37 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
+  // ✅ PROTECTED CHAOS TOGGLE
+  void _toggleChaos() {
+    if (!_permissionGuard.checkAndShowError(
+      context,
+      'mesh:admin',
+      customMessage: 'Only Administrators can control Chaos Mode',
+    )) {
+      return; // ❌ Blocked
+    }
+
+    // ✅ Proceed
+    if (_chaosActive) {
+      context.read<RoutingBloc>().add(RoutingStopChaosRequested());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚡ Chaos Mode Deactivated'),
+          backgroundColor: Colors.grey,
+        ),
+      );
+    } else {
+      context.read<RoutingBloc>().add(RoutingStartChaosRequested());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚡ Chaos Mode Activated - Random flooding every 30s'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   Widget _buildControlPanel(BuildContext context, RoutingState state) {
     Map<String, GraphNode> nodes = {};
 
@@ -86,7 +167,6 @@ class _MapPageState extends State<MapPage> {
       nodes = {for (var node in state.route.nodes) node.id: node};
     }
 
-    // ✅ Handle empty state
     if (nodes.isEmpty) {
       return Card(
         margin: const EdgeInsets.all(8),
@@ -94,15 +174,15 @@ class _MapPageState extends State<MapPage> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              Icon(Icons.warning, size: 48, color: Colors.orange),
-              SizedBox(height: 16),
-              Text('No graph data loaded'),
-              SizedBox(height: 8),
+              const Icon(Icons.warning, size: 48, color: Colors.orange),
+              const SizedBox(height: 16),
+              const Text('No graph data loaded'),
+              const SizedBox(height: 8),
               ElevatedButton(
                 onPressed: () {
                   context.read<RoutingBloc>().add(RoutingInitializeRequested());
                 },
-                child: Text('Reload Graph'),
+                child: const Text('Reload Graph'),
               ),
             ],
           ),
@@ -121,9 +201,8 @@ class _MapPageState extends State<MapPage> {
               'Route Planner',
               style: Theme.of(context).textTheme.titleLarge,
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-            // ✅ FIXED: Vehicle selector with SingleChildScrollView
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: SegmentedButton<VehicleConstraints>(
@@ -151,11 +230,10 @@ class _MapPageState extends State<MapPage> {
             ),
             const SizedBox(height: 16),
 
-            // ✅ FIXED: Start/End selectors in Column instead of Row
             Column(
               children: [
                 DropdownButtonFormField<String>(
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Start Location',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.location_on, color: Colors.green),
@@ -166,7 +244,7 @@ class _MapPageState extends State<MapPage> {
                     return DropdownMenuItem(
                       value: node.id,
                       child: Text(
-                        node.name ?? node.id,
+                        node.name,
                         overflow: TextOverflow.ellipsis,
                       ),
                     );
@@ -175,11 +253,11 @@ class _MapPageState extends State<MapPage> {
                     setState(() => _selectedStartNode = value);
                   },
                 ),
-                SizedBox(height: 12),
-                Icon(Icons.arrow_downward, color: Colors.blue),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
+                const Icon(Icons.arrow_downward, color: Colors.blue),
+                const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'End Location',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.flag, color: Colors.red),
@@ -190,7 +268,7 @@ class _MapPageState extends State<MapPage> {
                     return DropdownMenuItem(
                       value: node.id,
                       child: Text(
-                        node.name ?? node.id,
+                        node.name,
                         overflow: TextOverflow.ellipsis,
                       ),
                     );
@@ -203,18 +281,10 @@ class _MapPageState extends State<MapPage> {
             ),
             const SizedBox(height: 16),
 
-            // Calculate button
+            // ✅ PROTECTED CALCULATE BUTTON
             ElevatedButton.icon(
               onPressed: _selectedStartNode != null && _selectedEndNode != null
-                  ? () {
-                context.read<RoutingBloc>().add(
-                  RoutingCalculateRouteRequested(
-                    startNodeId: _selectedStartNode!,
-                    endNodeId: _selectedEndNode!,
-                    vehicleConstraints: _selectedVehicle,
-                  ),
-                );
-              }
+                  ? _calculateRoute
                   : null,
               icon: const Icon(Icons.route),
               label: const Text('Calculate Route'),
@@ -223,11 +293,10 @@ class _MapPageState extends State<MapPage> {
               ),
             ),
 
-            // ✅ Show route info
             if (state is RoutingCalculated && state.route.isValid) ...[
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Container(
-                padding: EdgeInsets.all(12),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.green.shade50,
                   borderRadius: BorderRadius.circular(8),
@@ -243,7 +312,7 @@ class _MapPageState extends State<MapPage> {
                         color: Colors.green.shade700,
                       ),
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text('Distance: ${state.route.totalDistance.toStringAsFixed(2)} km'),
                     Text('Time: ${state.route.estimatedTime.toStringAsFixed(1)} min'),
                     Text('Nodes: ${state.route.nodes.length}'),
@@ -257,11 +326,53 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
+  // ✅ PROTECTED ROUTE CALCULATION
+  void _calculateRoute() {
+    if (!_permissionGuard.checkAndShowError(
+      context,
+      'delivery:create',
+      customMessage: 'You need Field Volunteer role or higher to plan routes',
+    )) {
+      return; // ❌ Blocked
+    }
+
+    // ✅ Proceed
+    context.read<RoutingBloc>().add(
+      RoutingCalculateRouteRequested(
+        startNodeId: _selectedStartNode!,
+        endNodeId: _selectedEndNode!,
+        vehicleConstraints: _selectedVehicle,
+      ),
+    );
+  }
+
   Widget _buildMap(BuildContext context, RoutingState state) {
     final markers = <Marker>[];
     final polylines = <Polyline>[];
+    List<GraphEdge> allEdges = [];
+    bool chaosActive = false;
 
     if (state is RoutingReady) {
+      allEdges = state.edges;
+      chaosActive = state.chaosActive;
+
+      // Draw ALL edges with color coding
+      for (var edge in state.edges) {
+        final sourceNode = state.nodes[edge.sourceId];
+        final targetNode = state.nodes[edge.targetId];
+
+        if (sourceNode != null && targetNode != null) {
+          polylines.add(
+            Polyline(
+              points: [sourceNode.position, targetNode.position],
+              strokeWidth: edge.isFlooded ? 4.0 : 2.0,
+              color: _getEdgeColor(edge),
+              isDotted: edge.isFlooded,
+            ),
+          );
+        }
+      }
+
       // Show all nodes
       for (var node in state.nodes.values) {
         markers.add(
@@ -278,15 +389,16 @@ class _MapPageState extends State<MapPage> {
         );
       }
     } else if (state is RoutingCalculated && state.route.isValid) {
-      // Show route
       final route = state.route;
+      chaosActive = state.chaosActive;
+      allEdges = state.allEdges;
 
       // Mark start and end specially
       for (int i = 0; i < route.nodes.length; i++) {
         final node = route.nodes[i];
         Color color = Colors.blue;
-        if (i == 0) color = Colors.green; // Start
-        if (i == route.nodes.length - 1) color = Colors.red; // End
+        if (i == 0) color = Colors.green;
+        if (i == route.nodes.length - 1) color = Colors.red;
 
         markers.add(
           Marker(
@@ -302,30 +414,102 @@ class _MapPageState extends State<MapPage> {
         );
       }
 
-      // Draw route line
+      // Draw route line (thick blue)
       polylines.add(
         Polyline(
           points: route.nodes.map((n) => n.position).toList(),
-          strokeWidth: 4.0,
+          strokeWidth: 5.0,
           color: Colors.blue,
         ),
       );
     }
 
-    return FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(
-        initialCenter: const LatLng(24.8949, 91.8667), // Sylhet
-        initialZoom: 12.0,
-      ),
+    return Stack(
       children: [
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.hackfusion.digital_delta',
+        // Map
+        FlutterMap(
+          mapController: _mapController,
+          options: const MapOptions(
+            initialCenter: LatLng(24.8949, 91.8667),
+            initialZoom: 10.0,
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.hackfusion.digital_delta',
+            ),
+            PolylineLayer(polylines: polylines),
+            MarkerLayer(markers: markers),
+          ],
         ),
-        PolylineLayer(polylines: polylines),
-        MarkerLayer(markers: markers),
+
+        // Flood Status Panel (top-right)
+        if (allEdges.isNotEmpty)
+          Positioned(
+            top: 16,
+            right: 16,
+            child: FloodStatusPanel(
+              edges: allEdges,
+              chaosActive: chaosActive,
+            ),
+          ),
+
+        // Legend (bottom-left)
+        Positioned(
+          bottom: 16,
+          left: 16,
+          child: _buildLegend(),
+        ),
       ],
+    );
+  }
+
+  Color _getEdgeColor(GraphEdge edge) {
+    if (edge.isFlooded) {
+      return Colors.red;
+    } else if (edge.riskScore > 0.7) {
+      return Colors.orange;
+    } else if (edge.riskScore > 0.3) {
+      return Colors.yellow;
+    } else {
+      return Colors.green.withOpacity(0.6);
+    }
+  }
+
+  Widget _buildLegend() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Legend',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _LegendItem(color: Colors.green, label: 'Safe Route'),
+          _LegendItem(color: Colors.yellow, label: 'At Risk'),
+          _LegendItem(color: Colors.orange, label: 'High Risk'),
+          _LegendItem(color: Colors.red, label: 'Flooded'),
+          const SizedBox(height: 4),
+          _LegendItem(color: Colors.blue, label: 'Active Route', thick: true),
+        ],
+      ),
     );
   }
 
@@ -344,5 +528,42 @@ class _MapPageState extends State<MapPage> {
       default:
         return Icons.location_on;
     }
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  final Color color;
+  final String label;
+  final bool thick;
+
+  const _LegendItem({
+    required this.color,
+    required this.label,
+    this.thick = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 20,
+            height: thick ? 4 : 2,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11),
+          ),
+        ],
+      ),
+    );
   }
 }

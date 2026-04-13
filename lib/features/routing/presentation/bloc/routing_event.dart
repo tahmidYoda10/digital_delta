@@ -48,3 +48,32 @@ class RoutingLoadGraphRequested extends RoutingEvent {
   @override
   List<Object?> get props => [graphJson];
 }
+
+// ✅ NEW: Chaos control events
+class RoutingStartChaosRequested extends RoutingEvent {
+  @override
+  List<Object?> get props => [];
+}
+
+class RoutingStopChaosRequested extends RoutingEvent {
+  @override
+  List<Object?> get props => [];
+}
+
+// ✅ NEW: Auto-reroute event (triggered by flood)
+class RoutingAutoRerouteRequested extends RoutingEvent {
+  final String floodedEdgeId;
+  final String startNodeId;
+  final String endNodeId;
+  final VehicleConstraints vehicleConstraints;
+
+  const RoutingAutoRerouteRequested({
+    required this.floodedEdgeId,
+    required this.startNodeId,
+    required this.endNodeId,
+    required this.vehicleConstraints,
+  });
+
+  @override
+  List<Object?> get props => [floodedEdgeId, startNodeId, endNodeId, vehicleConstraints];
+}

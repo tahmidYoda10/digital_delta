@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:async';
+import '../../../../core/auth/user_role.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
 import '../bloc/auth_state.dart';
@@ -20,6 +21,7 @@ class _LoginPageState extends State<LoginPage> {
   String? _currentOTP;
   Timer? _otpTimer;
   int _remainingSeconds = 30;
+  UserRole _selectedRole = UserRole.FIELD_VOLUNTEER; // ✅ ADD THIS
 
   @override
   void dispose() {
@@ -57,6 +59,25 @@ class _LoginPageState extends State<LoginPage> {
         ),
       );
     }
+  }
+
+  void _register() {
+    if (_usernameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a username'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    context.read<AuthBloc>().add(
+      AuthRegisterRequested(
+        username: _usernameController.text.trim(),
+        role: _selectedRole,
+      ),
+    );
   }
 
   @override
@@ -110,7 +131,7 @@ class _LoginPageState extends State<LoginPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         // Logo
-                        Icon(
+                        const Icon(
                           Icons.water_damage,
                           size: 100,
                           color: Colors.white,
@@ -118,7 +139,7 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 20),
 
                         // Title
-                        Text(
+                        const Text(
                           'Digital Delta',
                           style: TextStyle(
                             fontSize: 32,
@@ -127,7 +148,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text(
+                        const Text(
                           'Disaster Relief Logistics',
                           style: TextStyle(
                             fontSize: 16,
@@ -136,7 +157,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 40),
 
-                        // Login Card
+                        // Login/Register Card
                         Card(
                           elevation: 8,
                           shape: RoundedRectangleBorder(
@@ -152,7 +173,7 @@ class _LoginPageState extends State<LoginPage> {
                                   controller: _usernameController,
                                   decoration: InputDecoration(
                                     labelText: 'Username',
-                                    prefixIcon: Icon(Icons.person),
+                                    prefixIcon: const Icon(Icons.person),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -166,12 +187,36 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                                 const SizedBox(height: 16),
 
+                                // ✅ Role Selector (NEW)
+                                DropdownButtonFormField<UserRole>(
+                                  value: _selectedRole,
+                                  decoration: InputDecoration(
+                                    labelText: 'Role',
+                                    prefixIcon: const Icon(Icons.badge),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  items: UserRole.values.map((role) {
+                                    return DropdownMenuItem(
+                                      value: role,
+                                      child: Text(RolePermissions.getRoleName(role)),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() => _selectedRole = value);
+                                    }
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+
                                 // OTP Field
                                 TextFormField(
                                   controller: _otpController,
                                   decoration: InputDecoration(
                                     labelText: 'OTP Code',
-                                    prefixIcon: Icon(Icons.lock),
+                                    prefixIcon: const Icon(Icons.lock),
                                     suffixIcon: _currentOTP != null
                                         ? Chip(
                                       label: Text('${_remainingSeconds}s'),
@@ -198,8 +243,8 @@ class _LoginPageState extends State<LoginPage> {
                                 // Generate OTP Button
                                 OutlinedButton.icon(
                                   onPressed: isLoading ? null : _generateOTP,
-                                  icon: Icon(Icons.refresh),
-                                  label: Text('Generate OTP'),
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Generate OTP'),
                                   style: OutlinedButton.styleFrom(
                                     padding: const EdgeInsets.all(16),
                                   ),
@@ -216,17 +261,24 @@ class _LoginPageState extends State<LoginPage> {
                                     ),
                                   ),
                                   child: isLoading
-                                      ? SizedBox(
+                                      ? const SizedBox(
                                     height: 20,
                                     width: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                     ),
                                   )
-                                      : Text(
+                                      : const Text(
                                     'LOGIN',
                                     style: TextStyle(fontSize: 16),
                                   ),
+                                ),
+                                const SizedBox(height: 12),
+
+                                // ✅ Register Button (NEW)
+                                TextButton(
+                                  onPressed: isLoading ? null : _register,
+                                  child: const Text('New User? Register'),
                                 ),
                               ],
                             ),
@@ -236,11 +288,11 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 24),
 
                         // Offline Indicator
-                        Row(
+                        const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.offline_bolt, color: Colors.white70, size: 16),
-                            const SizedBox(width: 8),
+                            SizedBox(width: 8),
                             Text(
                               'Offline Mode Active',
                               style: TextStyle(color: Colors.white70),
